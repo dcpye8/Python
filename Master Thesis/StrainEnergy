@@ -1,0 +1,143 @@
+# THIS IS A SCRIPT CREATED TO CALCULATE MECHANICAL PROPERTIES LIKE STIFFNESS AND ENERGY ABSORPTION IN MULTIPLE MODELS
+# THE VALUE OF A COMPONENT STIFFNESS IS THE SLOPE OF A LOAD-DISPLACEMENT CURVE
+# THE VALUE FOR THE ENERGY ABSORPTION IS THE AREA BELLOW SUCH CURVE (USED NUMERICAL METHODS (TRAPEZOIDAL) TO APPROXIMATE THIS VALUE SINCE IT'S AN AREA INTEGRATION)
+
+from numpy import trapz
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+#df = pd.read_excel(r'Documents\UM\5º Ano\Dissertação\.py\ansys_data.xlsx')
+#df_density = pd.read_excel(r'Documents\UM\5º Ano\Dissertação\.py\ansys_data_densidade.xlsx')
+df = pd.read_excel('ansys_data.xlsx')
+df_density = pd.read_excel('ansys_data_densidade.xlsx')
+
+#-----------------------------------------------#
+# Mass of each model [kg]
+MASS_VALUES = {'COMP1_A':0.00078928,
+               'COMP1_B':0.00079136,
+               'COMP1_C':0.00079755,
+               'COMP1_D':0.00081983,
+               'COMP2_A':0.0007706,
+               'COMP2_B':0.00080484,
+               'COMP3_A':0.00077698,
+               'TORC1_A':0.00080829,
+               'TORC1_B':0.0007952,
+               'TORC2_A':0.00080781,
+               'TORC3_A':0.00080618,
+               'CORT1_A':0.00081556,
+               'CORT2_A':0.000787,
+               'CORT3_A':0.00081162
+               }
+
+# Mass per relative density value (for the property vs relative density graph)
+MASS_DENSITY = {'10': 0.0007845,
+                '20': 0.0015691,
+                '30': 0.0023536,
+                '40': 0.00313813,
+                '50': 0.003922667,
+                '60': 0.0047072,
+                '70': 0.00549173,
+                }
+
+#-----------------------------------------------#
+# Function to compute the area bellow the graph (energy - trapezoidal method)) and the slope of the curve (stiffness)
+def compute_energy_stiffness(model, mass, load_values, displacement_values):
+    
+    energy_absorption = trapz(load_values, displacement_values)/1000 #N.mm para N.m = J
+    energy_absorption_specific = energy_absorption/mass # J/kg
+
+    # Slope of the first 5 points (elastic region) to compute the specific stiffness
+    slope, intercept = np.polyfit(displacement_values[0:4],load_values[0:4],1)
+    stiffness_specific = (slope/1000)/mass #N/m.kg
+    
+    return energy_absorption_specific, stiffness_specific
+  
+# Function to create a bar graph with the energy and stiffness values per model
+def bar_graph(models, energy, stiffness):
+    # https://matplotlib.org/3.1.1/gallery/lines_bars_and_markers/barchart.html#sphx-glr-gallery-lines-bars-and-markers-barchart-py
+
+    x = np.arange(len(models))
+    width = 0.35
+    fig, ax = plt.subplots()
+
+    rects1 = ax.bar(x - width/2, energy, width, label='Energy [J/kg]')  
+    rects2 = ax.bar(x + width/2, stiffness, width, label='Stiffness [N/hm.kg]')
+    
+    ax.set_xticks(x)
+    ax.set_xticklabels(models)
+    ax.legend()
+    plt.show()
+
+# Function to plot energy and stiffness values per relative density percentage 
+def relative_density_graph(density, stiffness, energy):
+
+    fig, ax1 = plt.subplots()
+
+    ax2 = ax1.twinx()
+    ax1.plot(density, stiffness, 'g-')
+    ax2.plot(density, energy, 'b-')
+
+    ax1.set_xlabel('Relative Density [%]')
+    ax1.set_ylabel('Stiffness [N/m.kg]', color='g')
+    ax2.set_ylabel('Energy [J/kg]', color='b')
+
+    plt.show()
+    
+#-----------------------------------------------#
+# Creates a list with the model names in the database (ansys_data.xlsx)
+num_col = len(df.columns)
+model_names = []
+for i in range(0, num_col):
+    if i % 2 == 0:
+        model_names.append(df.columns[i][6:])
+
+# Gets the model names in model_names and use the function compute_energy_stiffness to compute the values
+# i = model_names and MASS_VALUES loop
+energy_values, stiffness_values = [], []
+
+for i in range(len(model_names)):
+
+    load_values = df['force_' + model_names[i]]
+    displac_values = df['displacement_' + model_names[i]]
+
+    energy_absorption_specific, stiffness_specific = compute_energy_stiffness(model_names[i], MASS_VALUES[model_names[i]], load_values, displac_values)
+
+    energy_values.append(energy_absorption_specific)
+    stiffness_values.append(stiffness_specific/1000) # Divides per 1000 to compare the energy and stiffness in the same magnitude (TO REMOVE)
+    print(f'Model: {model_names[i]}', '\n',
+            f'Energy: {energy_absorption_specific} J/kg', '\n',
+            f'Stiffness: {stiffness_specific} N/mm.kg')
+  
+    plt.plot(displac_values, load_values, label=model_names[i])
+    
+    plt.legend(loc='lower right')
+    plt.xlabel('Deslocamento [mm]')
+    plt.ylabel('Força [N]')
+    plt.title('Força vs Deslocamento')
+
+# Saves the energy and stiffness final values in an excel file
+data_tuple = list(zip(model_names, energy_values, stiffness_values))
+df_values = pd.DataFrame(data_tuple, columns=['Models', 'Energy', 'Stiffness'])
+df_values.to_excel('values.xlsx')
+
+#-----------------------------------------------#
+# Plots energy and stiffness values per relative density (model n11_1)
+density_values = [70, 60, 50, 40, 30, 20, 10]
+energy_abs_density, stiffness_density = [], []
+
+for col, model in zip(range(0, len(df_density.columns)), density_values):
+    
+    load_values_density = df_density['force_' + str(model)]
+    displac_values_density = df_density['displacement_' + str(model)]
+    mass = MASS_DENSITY[str(model)]
+    
+    energy_absorption_specific, stiffness_specific = compute_energy_stiffness(model, mass, load_values_density, displac_values_density)
+    
+    energy_abs_density.append(energy_absorption_specific)
+    stiffness_density.append(stiffness_specific)
+
+#-----------------------------------------------#
+relative_density_graph(density_values, stiffness_density, energy_abs_density) 
+bar_graph(model_names, energy_values, stiffness_values)
+plt.show()
