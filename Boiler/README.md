@@ -4,7 +4,7 @@ The script starts by importing the required modules: pandas for data handling, n
 
 Then, the excel file is read and stored in a pandas dataframe called 'raw_data'. A copy of the original data is made to the 'data' variable.
 
-Next, the script extracts the relevant columns from the data (time, temperature at 5cm, 15cm, 25cm and 60cm, and CO emissions), and creates an empty column called 'temp_max' to store the maximum temperature per row.
+Next, the script extracts the relevant columns from the data (time, temperature at 5mm, 15mm, 25mm and 60mm, and CO emissions), and creates an empty column called 'temp_max' to store the maximum temperature per row.
 
 Then, a loop is used to fill the 'temp_max' column with the maximum temperature value between all temperatures at different depths. The loop goes through each row, extracts the temperature values and creates an array with them. The 'np.max' function is then used to find the maximum value in the array, which is stored in the 'temp_max' column for that row.
 
